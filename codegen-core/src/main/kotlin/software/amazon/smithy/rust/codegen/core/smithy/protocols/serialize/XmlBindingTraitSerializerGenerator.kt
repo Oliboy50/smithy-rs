@@ -319,7 +319,7 @@ class XmlBindingTraitSerializerGenerator(
                         HttpLocation.DOCUMENT,
                         TimestampFormatTrait.Format.DATE_TIME, model,
                     )
-                val timestampFormatType = RuntimeType.timestampFormat(runtimeConfig, timestampFormat)
+                val timestampFormatType = RuntimeType.parseTimestampFormat(codegenTarget, runtimeConfig, timestampFormat)
                 rust("$input.fmt(#T)?.as_ref()", timestampFormatType)
             }
 
