@@ -193,13 +193,13 @@ fun validateUnsupportedConstraints(
     // 1. Constraint traits on member shapes are used. [Constraint trait precedence] has not been implemented yet.
     // TODO(https://github.com/awslabs/smithy-rs/issues/1401)
     // [Constraint trait precedence]: https://awslabs.github.io/smithy/2.0/spec/model.html#applying-traits
-    val unsupportedConstraintOnMemberShapeSet = walker
-        .walkShapes(service)
-        .asSequence()
-        .filterIsInstance<MemberShape>()
-        .filterMapShapesToTraits(unsupportedConstraintsOnMemberShapes)
-        .map { (shape, trait) -> UnsupportedConstraintOnMemberShape(shape as MemberShape, trait) }
-        .toSet()
+//    val unsupportedConstraintOnMemberShapeSet = walker
+//        .walkShapes(service)
+//        .asSequence()
+//        .filterIsInstance<MemberShape>()
+//        .filterMapShapesToTraits(unsupportedConstraintsOnMemberShapes)
+//        .map { (shape, trait) -> UnsupportedConstraintOnMemberShape(shape as MemberShape, trait) }
+//        .toSet()
 
     // 2. Constraint traits on streaming blob shapes are used. Their semantics are unclear.
     // TODO(https://github.com/awslabs/smithy/issues/1389)
@@ -257,7 +257,7 @@ fun validateUnsupportedConstraints(
         .toSet()
 
     val messages =
-        unsupportedConstraintOnMemberShapeSet.map { it.intoLogMessage(codegenConfig.ignoreUnsupportedConstraints) } +
+//        unsupportedConstraintOnMemberShapeSet.map { it.intoLogMessage(codegenConfig.ignoreUnsupportedConstraints) } +
             unsupportedLengthTraitOnStreamingBlobShapeSet.map { it.intoLogMessage(codegenConfig.ignoreUnsupportedConstraints) } +
             unsupportedConstraintShapeReachableViaAnEventStreamSet.map { it.intoLogMessage(codegenConfig.ignoreUnsupportedConstraints) } +
             unsupportedRangeTraitOnShapeSet.map { it.intoLogMessage(codegenConfig.ignoreUnsupportedConstraints) } +
