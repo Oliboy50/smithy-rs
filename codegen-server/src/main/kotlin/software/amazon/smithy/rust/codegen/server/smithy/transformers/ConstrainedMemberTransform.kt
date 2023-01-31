@@ -2,9 +2,13 @@ package software.amazon.smithy.rust.codegen.server.smithy.transformers
 
 import software.amazon.smithy.model.Model
 import software.amazon.smithy.model.shapes.AbstractShapeBuilder
+import software.amazon.smithy.model.shapes.ListShape
+import software.amazon.smithy.model.shapes.MapShape
 import software.amazon.smithy.model.shapes.MemberShape
 import software.amazon.smithy.model.shapes.Shape
 import software.amazon.smithy.model.shapes.ShapeId
+import software.amazon.smithy.model.shapes.StructureShape
+import software.amazon.smithy.model.shapes.UnionShape
 import software.amazon.smithy.model.traits.RequiredTrait
 import software.amazon.smithy.model.traits.Trait
 import software.amazon.smithy.model.transform.ModelTransformer
@@ -22,7 +26,7 @@ import software.amazon.smithy.rust.codegen.server.smithy.allConstraintTraits
  * member shapes targeting synthetic constrained structure shapes with the member's constraints.
  *
  * E.g.:
- *
+ * ```
  * structure A {
  *   @length(min: 1, max: 69)
  *   string: ConstrainedString
@@ -31,9 +35,11 @@ import software.amazon.smithy.rust.codegen.server.smithy.allConstraintTraits
  * @length(min: 2, max: 10)
  * @pattern("^[A-Za-z]+$")
  * string ConstrainedString
+ * ```
  *
  * to
  *
+ * ```
  * structure A {
  *   string: OverriddenConstrainedString
  * }
@@ -45,6 +51,7 @@ import software.amazon.smithy.rust.codegen.server.smithy.allConstraintTraits
  * @length(min: 2, max: 10)
  * @pattern("^[A-Za-z]+$")
  * string ConstrainedString
+ * ```
  */
 object ConstrainedMemberTransform {
     private data class MemberShapeTransformation(
@@ -60,6 +67,7 @@ object ConstrainedMemberTransform {
 
     fun transform(model: Model): Model {
         val additionalNames = HashSet<ShapeId>()
+        val walker = DirectedWalker(model)
 
         val transformations = model.operationShapes
             .flatMap { operation ->
@@ -67,10 +75,9 @@ object ConstrainedMemberTransform {
             }
             .map { model.expectShape(it) }
             .flatMap {
-                val walker = DirectedWalker(model)
                 walker.walkShapes(it)
             }
-            .filter { it.isStructureShape || it.isListShape || it.isUnionShape || it.isMapShape }
+            .filter { it is StructureShape || it is ListShape || it is UnionShape || it is MapShape }
             .flatMap {
                 it.constrainedMembers()
             }
@@ -123,7 +130,7 @@ object ConstrainedMemberTransform {
         }
 
     /**
-     * Returns the unique (within the model) name of the new shape
+     * Returns the unique (within the model) shape ID of the new shape
      */
     private fun overriddenShapeId(
         model: Model,
@@ -168,7 +175,7 @@ object ConstrainedMemberTransform {
                 memberConstraintTraitsToOverride.contains(it.javaClass)
             }
 
-        // No transformation required in case the given MemberShape has no constraints.
+        // No transformation required in case the member shape has no constraints.
         if (constraintTraits.isEmpty())
             return null
 
@@ -176,11 +183,11 @@ object ConstrainedMemberTransform {
         if (targetShape !is ToSmithyBuilder<*>)
             UNREACHABLE("member target shapes will always be buildable")
 
-        when (val builder = targetShape.toBuilder()) {
+        return when (val builder = targetShape.toBuilder()) {
             is AbstractShapeBuilder<*, *> -> {
                 // Use the target builder to create a new standalone shape that would
                 // be added to the model later on. Keep all existing traits on the target
-                // but replace the ones that are overridden on the member shapes.
+                // but replace the ones that are overridden on the member shape.
                 val existingNonOverriddenTraits =
                     builder.allTraits.values.filter { existingTrait ->
                         constraintTraits.none { it.toShapeId() == existingTrait.toShapeId() }
@@ -188,7 +195,7 @@ object ConstrainedMemberTransform {
 
                 val newTraits =
                     existingNonOverriddenTraits + constraintTraits + SyntheticStructureFromConstrainedMemberTrait(
-                        this.id,
+                        this,
                     )
 
                 // Create a new standalone shape that will be added to the model later on
@@ -199,12 +206,10 @@ object ConstrainedMemberTransform {
 
                 // Since the new shape has not been added to the model as yet, the current
                 // memberShape's target cannot be changed to the new shape.
-                return MemberShapeTransformation(standaloneShape, this, otherTraits)
+                MemberShapeTransformation(standaloneShape, this, otherTraits)
             }
 
-            else -> throw IllegalStateException("Constraint traits cannot to applied on ${this.id}") // FZ confirm how we are throwing exceptions
+            else -> UNREACHABLE("Constraint traits cannot to applied on ${this.id}")
         }
-
-        throw IllegalStateException("Constraint traits can only be applied to buildable types. ${this.id} is not buildable") // FZ confirm how we are throwing exceptions
     }
 }
