@@ -161,9 +161,9 @@ open class ServerCodegenVisitor(
             .let { ModelTransformer.create().copyServiceErrorsToOperations(it, settings.getService(it)) }
             // Add `Box<T>` to recursive shapes as necessary
             .let(RecursiveShapeBoxer::transform)
-            // Refactors constrained member shapes into non-constrained shapes of a new standalone type
-            // that has some constraints.
-            .let(RefactorConstrainedMemberType::transform)
+            // Transforms constrained member shapes into non-constrained member shapes targeting a new shape that
+            // has the member's constraints.
+            .let(ConstrainedMemberTransform::transform)
             // Normalize operations by adding synthetic input and output shapes to every operation
             .let(OperationNormalizer::transform)
             // Remove the EBS model's own `ValidationException`, which collides with `smithy.framework#ValidationException`

@@ -2,13 +2,11 @@ package software.amazon.smithy.rust.codegen.server.smithy
 
 import org.junit.jupiter.api.Test
 import software.amazon.smithy.model.Model
-import software.amazon.smithy.model.neighbor.RelationshipType
 import software.amazon.smithy.model.shapes.ModelSerializer
 import software.amazon.smithy.model.shapes.ShapeId
 import software.amazon.smithy.rust.codegen.core.testutil.asSmithyModel
-import software.amazon.smithy.rust.codegen.server.smithy.transformers.RefactorConstrainedMemberType
+import software.amazon.smithy.rust.codegen.server.smithy.transformers.ConstrainedMemberTransform
 import software.amazon.smithy.model.node.Node
-import software.amazon.smithy.rust.codegen.core.smithy.DirectedWalker
 import software.amazon.smithy.rust.codegen.core.smithy.RuntimeConfig
 import software.amazon.smithy.rust.codegen.core.smithy.RuntimeCrateLocation
 import software.amazon.smithy.rust.codegen.core.testutil.generatePluginContext
@@ -40,7 +38,9 @@ class ConstraintsMemberShapeTest {
             id : Integer
             @length(max: 100)
             city : String
-            description : String
+            description: String
+            
+            seasons : PatternListOverride
             
             @range(max: 200)
             degree : Centigrade
@@ -67,6 +67,14 @@ class ConstraintsMemberShapeTest {
             member: Coordinate
         }
         
+        list PatternListOverride {
+            @pattern("^[g-m]+${'$'}")
+            member: PatternString
+        }
+        
+        @pattern("^[a-m]+${'$'}")
+        string PatternString
+        
         integer FeelsLikeCentigrade
         float Centigrade
         
@@ -78,6 +86,152 @@ class ConstraintsMemberShapeTest {
         float Fahrenheit
     """.asSmithyModel()
 
+    private val testBareModel = """
+        namespace weather
+        
+        use aws.api#data
+        use aws.protocols#restJson1
+
+        @restJson1
+        service WeatherService {
+            operation: [GetWeather]
+        }
+
+        @http(uri: "/weather", method: "GET")
+        operation GetWeather {
+            output : WeatherOutput
+        }
+
+        structure WeatherOutput {
+            @range(max: 200)
+            degree : Centigrade
+            
+            list : PatternListOverride
+        }
+        
+        list PatternListOverride {
+            @pattern("^[g-m]+${'$'}")
+            member: PatternString
+        }
+        
+        @pattern("^[a-m]+${'$'}")
+        string PatternString
+
+        float Centigrade
+    """.trimIndent().asSmithyModel()
+
+    @Test
+    fun `test bare model`() {
+//        val model = ConstrainedMemberTransform.transform(testBareModel)
+//        checkMemberShapeChanged(model, testBareModel, "weather#WeatherOutput\$degree")
+//        checkMemberShapeChanged(model, testBareModel, "weather#PatternListOverride\$member")
+//
+//        println(model.toString())
+//
+//        val serializer: ModelSerializer = ModelSerializer.builder().build()
+//        val json = Node.prettyPrintJson(serializer.serialize(model))
+//        File("/Users/fahadzub/model.json").printWriter().use {
+//            it.println(json)
+//        }
+
+//        val runtimeConfig =
+//            RuntimeConfig(runtimeCrateLocation = RuntimeCrateLocation.Path(File("../../rust-runtime").absolutePath))
+//
+//        val (context, _testDir) = generatePluginContext(testBareModel,
+//            runtimeConfig = runtimeConfig, overrideTestDir = File("/Users/fahadzub/workplace/baykar/smithy"))
+//        val codegenDecorator: CombinedServerCodegenDecorator =
+//            CombinedServerCodegenDecorator.fromClasspath(context)
+//
+//        ServerCodegenVisitor(context, codegenDecorator)
+//            .execute()
+
+//        val modelToSerialize = context.model
+//        val serializer: ModelSerializer = ModelSerializer.builder().build()
+//        val json = Node.prettyPrintJson(serializer.serialize(modelToSerialize))
+//        File("/Users/fahadzub/workplace/baykar/smithy/model.json").printWriter().use {
+//            it.println(json)
+//        }
+
+        //println("Check $_testDir, that should have the code in it")
+    }
+
+    @Test
+    fun `generate code for constraint member list`() {
+        val codeGenModel = """
+            namespace com.aws.example.rust
+            
+            use aws.protocols#restJson1
+            
+            /// The Weather Service allows you to retrieve weather
+            @title("Weather Service")
+            @restJson1
+            service PokemonService {
+                version: "2021-12-01",
+                operations: [
+                    GetWeather
+                ],
+            }
+            
+            @http(uri: "/get-weather", method: "POST")
+            operation GetWeather {
+                input : GetWeatherInput
+                output: GetWeatherOutput
+            }
+            
+            structure GetWeatherInput {
+                cities : PatternCityOverride
+            }
+            
+            structure GetWeatherOutput {
+                averageTemperature: CentigradeList
+                temperature: Temperature
+            }
+            
+            union Temperature {
+                @range(min: -10, max: 100)
+                c : Centigrade
+                f : Fahrenheit
+            }
+            
+            list CentigradeList {
+                member: Integer
+            }
+        
+            list PatternCityOverride {
+                @pattern("^[g-m]+${'$'}")
+                member: PatternString
+            }
+        
+            @pattern("^[a-m]+${'$'}")
+            string PatternString
+            
+            integer Centigrade
+            integer Fahrenheit
+            """.asSmithyModel()
+
+//        val runtimeConfig =
+//            RuntimeConfig(runtimeCrateLocation = RuntimeCrateLocation.Path(File("../rust-runtime").absolutePath))
+//
+//        val (context, _testDir) = generatePluginContext(codeGenModel, runtimeConfig = runtimeConfig, overrideTestDir = File("/Users/fahadzub/workplace/baykar/smithy"))
+//        val codegenDecorator: CombinedServerCodegenDecorator =
+//            CombinedServerCodegenDecorator.fromClasspath(context)
+//
+//        ServerCodegenVisitor(context, codegenDecorator)
+//            .execute()
+//
+//        val modelToSerialize = ConstrainedMemberTransform.transform(codeGenModel)
+//
+//        //val modelToSerialize = context.model
+//        val serializer: ModelSerializer = ModelSerializer.builder().build()
+//        val json = Node.prettyPrintJson(serializer.serialize(modelToSerialize))
+//        File("/Users/fahadzub/workplace/baykar/smithy/transformed.json").printWriter().use {
+//            it.println(json)
+//        }
+//
+//        println("Check $_testDir, that should have the code in it")
+    }
+
+
     private val simpleModelWithNoConstraints = """
         namespace weather
 
@@ -88,6 +242,7 @@ class ConstraintsMemberShapeTest {
             operation: [GetWeather]
         }
 
+        @http(uri: "/pokemon-species", method: "POST")
         operation GetWeather {
             input : WeatherInput
         }
@@ -100,12 +255,9 @@ class ConstraintsMemberShapeTest {
 
     @Test
     fun `transform model and check all constraints on member shape have been changed`() {
-        val model = RefactorConstrainedMemberType.transform(baseModel)
-//        val shape = model.expectShape(ShapeId.from("weather#RefactoredWeatherInputCityName"))
-//        println(shape)
-//
-//        shape.allTraits.forEach{ println(it) }
+        val model = ConstrainedMemberTransform.transform(baseModel)
 
+        checkMemberShapeChanged(model, baseModel, "weather#PatternListOverride\$member")
         checkMemberShapeChanged(model, baseModel, "weather#WeatherOutput\$degree")
         checkMemberShapeChanged(model, baseModel, "weather#WeatherOutput\$city")
         checkMemberShapeChanged(model, baseModel, "weather#WeatherOutput\$feelsLikeC")
@@ -123,11 +275,11 @@ class ConstraintsMemberShapeTest {
         // Ensure data trait remained on the member shape in the transformed model.
         checkShapeHasTrait(model, baseModel, "weather#WeatherOutput\$historicData", "aws.api#data")
 
-        val serializer: ModelSerializer = ModelSerializer.builder().build()
-        val json = Node.prettyPrintJson(serializer.serialize(model))
-        File("output.txt").printWriter().use {
-            it.println(json)
-        }
+//        val serializer: ModelSerializer = ModelSerializer.builder().build()
+//        val json = Node.prettyPrintJson(serializer.serialize(model))
+//        File("output.txt").printWriter().use {
+//            it.println(json)
+//        }
     }
 
     /**
@@ -136,7 +288,7 @@ class ConstraintsMemberShapeTest {
      */
     @Test
     fun `Running transformations on a model without constraints has no side effects`() {
-        val model = RefactorConstrainedMemberType.transform(simpleModelWithNoConstraints)
+        val model = ConstrainedMemberTransform.transform(simpleModelWithNoConstraints)
         simpleModelWithNoConstraints.let {
             checkMemberShapeIsSame(model, it, "weather#WeatherInput\$latitude")
             checkMemberShapeIsSame(model, it, "weather#WeatherInput\$longitude")
@@ -174,7 +326,7 @@ class ConstraintsMemberShapeTest {
             float Longitude
         """.asSmithyModel()
 
-        val model = RefactorConstrainedMemberType.transform(simpleModelWithNoMemberConstraints)
+        val model = ConstrainedMemberTransform.transform(simpleModelWithNoMemberConstraints)
         simpleModelWithNoMemberConstraints.let {
             checkMemberShapeIsSame(model, it, "weather#WeatherInput\$latitude")
             checkMemberShapeIsSame(model, it, "weather#WeatherInput\$longitude")
@@ -215,7 +367,7 @@ class ConstraintsMemberShapeTest {
             float Longitude
         """.asSmithyModel()
 
-        val model = RefactorConstrainedMemberType.transform(modelWithAnEmptyOperation)
+        val model = ConstrainedMemberTransform.transform(modelWithAnEmptyOperation)
         modelWithAnEmptyOperation.let {
             checkMemberShapeIsSame(model, it, "weather#WeatherInput\$latitude")
             checkMemberShapeIsSame(model, it, "weather#WeatherInput\$longitude")
@@ -241,7 +393,7 @@ class ConstraintsMemberShapeTest {
             }
         """.asSmithyModel()
 
-        val modelT = RefactorConstrainedMemberType.transform(modelWithOnlyEmptyOperation)
+        val modelT = ConstrainedMemberTransform.transform(modelWithOnlyEmptyOperation)
         check(modelWithOnlyEmptyOperation == modelT)
     }
 
@@ -285,14 +437,14 @@ class ConstraintsMemberShapeTest {
         ServerCodegenVisitor(context, codegenDecorator)
             .execute()
 
-        val modelToSerialize = context.model
-        val serializer: ModelSerializer = ModelSerializer.builder().build()
-        val json = Node.prettyPrintJson(serializer.serialize(modelToSerialize))
-        File("/Users/fahadzub/workplace/baykar/smithy/model.json").printWriter().use {
-            it.println(json)
-        }
-
-        println("Check $_testDir, that should have the code in it")
+//        val modelToSerialize = context.model
+//        val serializer: ModelSerializer = ModelSerializer.builder().build()
+//        val json = Node.prettyPrintJson(serializer.serialize(modelToSerialize))
+//        File("/Users/fahadzub/workplace/baykar/smithy/model.json").printWriter().use {
+//            it.println(json)
+//        }
+//
+//        println("Check $_testDir, that should have the code in it")
     }
 
     /**
@@ -306,17 +458,26 @@ class ConstraintsMemberShapeTest {
         val memberShape = model.expectShape(memberId).asMemberShape().get()
         val memberTargetShape = model.expectShape(memberShape.target)
         val beforeRefactorShape = baseModel.expectShape(memberId).asMemberShape().get()
+        val beforeRefactorTargetShape = model.expectShape(beforeRefactorShape.target)
 
-        // Member shape should not have the @range on it
+        // Member shape should not have the overriden constraints on it
         check(!memberShape.hasConstraintTrait())
         // Target shape has to be changed to a new shape
         check(memberTargetShape.id.name != beforeRefactorShape.target.name)
-        // New shape should have all of the constraint traits that were defined on the original shape
+        // New shape should have all of the constraint traits that were on the member shape,
+        // and it should also have the traits that the target type contains.
         val originalConstrainedTraits =
             beforeRefactorShape.allTraits.values.filter { allConstraintTraits.contains(it.javaClass) }.toSet()
         val newShapeConstrainedTraits =
             memberTargetShape.allTraits.values.filter { allConstraintTraits.contains(it.javaClass) }.toSet()
         check((originalConstrainedTraits - newShapeConstrainedTraits).isEmpty())
+
+        // In case the target shape has some more constraints, which the member shape did not override,
+        // then those still need to apply on the new stand alone shape that has been defined.
+        val leftOverTraits = beforeRefactorTargetShape.allTraits.values
+            .filter { beforeRefactorTrait -> !originalConstrainedTraits.any { beforeRefactorTrait.toShapeId() == it.toShapeId() } }
+        val allNewShapeTraits = memberTargetShape.allTraits.values.toList()
+        check((leftOverTraits + newShapeConstrainedTraits).all { it in allNewShapeTraits })
     }
 
     /**
@@ -418,7 +579,7 @@ class ConstraintsMemberShapeTest {
             @range(max: 8)
             long MaxLong
             """.asSmithyModel()
-        val model = RefactorConstrainedMemberType.transform(malformedModel)
+        val model = ConstrainedMemberTransform.transform(malformedModel)
         checkShapeTargetMatches(
             model,
             "test#MalformedRangeOverrideInput\$short",

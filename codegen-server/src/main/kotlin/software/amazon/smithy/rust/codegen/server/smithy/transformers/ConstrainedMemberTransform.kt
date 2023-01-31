@@ -6,22 +6,36 @@ import software.amazon.smithy.model.shapes.MemberShape
 import software.amazon.smithy.model.shapes.Shape
 import software.amazon.smithy.model.shapes.ShapeId
 import software.amazon.smithy.model.shapes.StructureShape
+import software.amazon.smithy.model.traits.EnumTrait
+import software.amazon.smithy.model.traits.LengthTrait
+import software.amazon.smithy.model.traits.PatternTrait
+import software.amazon.smithy.model.traits.RangeTrait
 import software.amazon.smithy.model.traits.Trait
+import software.amazon.smithy.model.traits.UniqueItemsTrait
 import software.amazon.smithy.model.transform.ModelTransformer
 import software.amazon.smithy.rust.codegen.core.smithy.DirectedWalker
 import software.amazon.smithy.rust.codegen.core.util.orNull
-import software.amazon.smithy.rust.codegen.server.smithy.allConstraintTraits
-import software.amazon.smithy.rust.codegen.server.smithy.hasConstraintTrait
 import software.amazon.smithy.rust.codegen.server.smithy.traits.RefactoredStructureTrait
 import software.amazon.smithy.utils.ToSmithyBuilder
 import java.lang.IllegalStateException
 import java.util.*
 
-object RefactorConstrainedMemberType {
+object ConstrainedStructureMemberTransform {
     private data class MemberTransformation(
         val newShape: Shape,
         val memberToChange: MemberShape,
         val traitsToKeep: List<Trait>,
+    )
+
+    fun Shape.hasMemberConstraintTrait() =
+        memberConstraintTraitsToOverride.any(this::hasTrait)
+
+    private val memberConstraintTraitsToOverride = setOf(
+        LengthTrait::class.java,
+        PatternTrait::class.java,
+        RangeTrait::class.java,
+        UniqueItemsTrait::class.java,
+        EnumTrait::class.java,
     )
 
     /**
@@ -30,6 +44,7 @@ object RefactorConstrainedMemberType {
      */
     fun transform(model: Model): Model {
         val existingRefactoredNames = HashSet<ShapeId>()
+        val walker = DirectedWalker(model)
 
         val transformations = model.operationShapes
             .flatMap { operation ->
@@ -37,12 +52,11 @@ object RefactorConstrainedMemberType {
             }
             .map { model.expectShape(it) }
             .flatMap {
-                val walker = DirectedWalker(model)
                 walker.walkShapes(it)
             }
-            .filterIsInstance(StructureShape::class.java)
+            .filter{ it.isStructureShape || it.isListShape || it.isUnionShape }
             .flatMap {
-                it.constrainedMembers()
+                it.constraintMembers()
             }.mapNotNull { it.makeNonConstrained(model, existingRefactoredNames) }
 
         return applyTransformations(model, transformations)
@@ -81,9 +95,9 @@ object RefactorConstrainedMemberType {
     /**
      * Returns a list of members that have constraint traits applied to them
      */
-    private fun StructureShape.constrainedMembers(): List<MemberShape> =
+    private fun Shape.constraintMembers(): List<MemberShape> =
         this.allMembers.values.filter {
-            it.hasConstraintTrait()
+            it.hasMemberConstraintTrait()
         }
 
     /**
@@ -148,7 +162,7 @@ object RefactorConstrainedMemberType {
     ): MemberTransformation? {
         val (constrainedTraits, otherTraits) = this.allTraits.values
             .partition {
-                allConstraintTraits.contains(it.javaClass)
+                memberConstraintTraitsToOverride.contains(it.javaClass)
             }
 
         // No transformation required in case the given MemberShape has no constraints.
@@ -166,7 +180,7 @@ object RefactorConstrainedMemberType {
                 is AbstractShapeBuilder<*, *> -> {
                     // Use the target builder to create a new standalone shape that would
                     // be added to the model later on. Keep all existing traits on the target
-                    // but replace the ones that are overriden on the member shape
+                    // but replace the ones that the member shape overrides.
                     val existingNonOverridenTraits =
                         builder.allTraits.values.filter { existingTrait ->
                             !constrainedTraits.any { it.toShapeId() == existingTrait.toShapeId() }
