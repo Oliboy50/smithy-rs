@@ -79,7 +79,7 @@ import software.amazon.smithy.rust.codegen.server.smithy.generators.protocol.Ser
 import software.amazon.smithy.rust.codegen.server.smithy.protocols.ServerProtocolLoader
 import software.amazon.smithy.rust.codegen.server.smithy.traits.isReachableFromOperationInput
 import software.amazon.smithy.rust.codegen.server.smithy.transformers.AttachValidationExceptionToConstrainedOperationInputsInAllowList
-import software.amazon.smithy.rust.codegen.server.smithy.transformers.RefactorConstrainedMemberType
+import software.amazon.smithy.rust.codegen.server.smithy.transformers.ConstrainedMemberTransform
 import software.amazon.smithy.rust.codegen.server.smithy.transformers.RemoveEbsModelValidationException
 import software.amazon.smithy.rust.codegen.server.smithy.transformers.ShapesReachableFromOperationInputTagger
 import java.util.logging.Logger
