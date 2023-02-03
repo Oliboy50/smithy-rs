@@ -1,4 +1,11 @@
 <!-- Do not manually edit this file. Use the `changelogger` tool. -->
+February 3rd, 2023
+==================
+**New this release:**
+- 🎉 (server, [smithy-rs#2232](https://github.com/awslabs/smithy-rs/issues/2232), [smithy-rs#1670](https://github.com/awslabs/smithy-rs/issues/1670)) The [`@uniqueItems`](https://smithy.io/2.0/spec/constraint-traits.html#uniqueitems-trait) trait on `list` shapes is now supported in server SDKs.
+- 🐛 (client, [smithy-rs#2271](https://github.com/awslabs/smithy-rs/issues/2271)) Fix broken doc link for `tokio_stream::Stream` that is a re-export of `futures_core::Stream`.
+
+
 January 25th, 2023
 ==================
 **New this release:**
