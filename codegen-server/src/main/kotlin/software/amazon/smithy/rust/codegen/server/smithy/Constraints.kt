@@ -26,11 +26,16 @@ import software.amazon.smithy.model.traits.PatternTrait
 import software.amazon.smithy.model.traits.RangeTrait
 import software.amazon.smithy.model.traits.RequiredTrait
 import software.amazon.smithy.model.traits.UniqueItemsTrait
+import software.amazon.smithy.rust.codegen.core.rustlang.RustModule
 import software.amazon.smithy.rust.codegen.core.smithy.CodegenContext
 import software.amazon.smithy.rust.codegen.core.smithy.DirectedWalker
 import software.amazon.smithy.rust.codegen.core.smithy.isOptional
+import software.amazon.smithy.rust.codegen.core.smithy.module
 import software.amazon.smithy.rust.codegen.core.util.UNREACHABLE
+import software.amazon.smithy.rust.codegen.core.util.getTrait
 import software.amazon.smithy.rust.codegen.core.util.hasTrait
+import software.amazon.smithy.rust.codegen.server.smithy.generators.serverBuilderModule
+import software.amazon.smithy.rust.codegen.server.smithy.traits.SyntheticStructureFromConstrainedMemberTrait
 
 /**
  * This file contains utilities to work with constrained shapes.
@@ -160,4 +165,36 @@ fun Shape.typeNameContainsNonPublicType(
     is MapShape -> this.canReachConstrainedShape(model, symbolProvider)
     is StructureShape, is UnionShape -> false
     else -> UNREACHABLE("the above arms should be exhaustive, but we received shape: $this")
+}
+
+fun Shape.isOverridenConstrainedMember(): Boolean =
+    getTrait<SyntheticStructureFromConstrainedMemberTrait>() != null
+
+fun Shape.overriddenConstrainedMemberContainer(): Shape? =
+    getTrait<SyntheticStructureFromConstrainedMemberTrait>()?.memberContainedIn
+
+
+/**
+ * Returns the parent and the inline module that this particular shape should go in.
+ */
+fun Shape.getParentAndInlineModuleForConstrainedMember(symbolProvider: SymbolProvider): Pair<RustModule.LeafModule, RustModule.LeafModule>? {
+    // TODO: FZ
+    // Maybe the following is okay for the List case but for normal primitive types the
+    // following is wrong as it gives the shapeModule to be model not the builder's
+    // module. Changing the following to make primitive work and then check what needs
+    // to be done for List
+
+    /*
+    val container = overriddenConstrainedMemberContainer() ?: return null
+    val parentModule = symbolProvider.toSymbol(container)
+    val shapeModule = symbolProvider.toSymbol(this).module()
+
+    return Pair(parentModule.module(), shapeModule)
+    */
+    val container = overriddenConstrainedMemberContainer()?.asStructureShape()?.orElse(null) ?: return null
+    val structureModule = symbolProvider.toSymbol(container).module()
+    // TODO: codegenContext is required to figure out if constrained types are public or not
+    // but do we care over here?
+    val builderModule = container.serverBuilderModule(symbolProvider, false)
+    return Pair(structureModule, builderModule)
 }

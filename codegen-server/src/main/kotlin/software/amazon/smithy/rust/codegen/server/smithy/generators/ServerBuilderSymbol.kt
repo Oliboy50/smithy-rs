@@ -17,13 +17,23 @@ import software.amazon.smithy.rust.codegen.core.smithy.rustType
 import software.amazon.smithy.rust.codegen.core.util.toSnakeCase
 import software.amazon.smithy.rust.codegen.server.smithy.ServerCodegenContext
 
+val alreadyDefined : HashMap<String, RustModule.LeafModule> = HashMap()
+
+
 fun StructureShape.serverBuilderSymbol(codegenContext: ServerCodegenContext): Symbol =
     this.serverBuilderSymbol(
         codegenContext.symbolProvider,
         !codegenContext.settings.codegenConfig.publicConstrainedTypes,
     )
 
-fun StructureShape.serverBuilderSymbol(symbolProvider: SymbolProvider, pubCrate: Boolean): Symbol {
+fun StructureShape.serverBuilderModule(codegenContext: ServerCodegenContext): RustModule.LeafModule {
+    return this.serverBuilderModule(
+        codegenContext.symbolProvider,
+        !codegenContext.settings.codegenConfig.publicConstrainedTypes,
+    )
+}
+
+fun StructureShape.serverBuilderModule(symbolProvider: SymbolProvider, pubCrate: Boolean): RustModule.LeafModule {
     val structureSymbol = symbolProvider.toSymbol(this)
     val builderNamespace = RustReservedWords.escapeIfNeeded(structureSymbol.name.toSnakeCase()) +
         if (pubCrate) {
@@ -35,7 +45,22 @@ fun StructureShape.serverBuilderSymbol(symbolProvider: SymbolProvider, pubCrate:
         true -> Visibility.PUBCRATE
         false -> Visibility.PUBLIC
     }
-    val builderModule = RustModule.new(builderNamespace, visibility, parent = structureSymbol.module(), inline = true)
+
+    val moduleToLookFor = "${visibility}${builderNamespace}${structureSymbol.module().name}"
+    return if (alreadyDefined.containsKey(moduleToLookFor)) {
+        alreadyDefined[moduleToLookFor]!!
+    }
+    else {
+        val module = RustModule.new(builderNamespace, visibility, parent = structureSymbol.module(), inline = true)
+        alreadyDefined[moduleToLookFor] = module
+        module
+    }
+
+    //return RustModule.new(builderNamespace, visibility, parent = structureSymbol.module(), inline = true)
+}
+
+fun StructureShape.serverBuilderSymbol(symbolProvider: SymbolProvider, pubCrate: Boolean): Symbol {
+    val builderModule = serverBuilderModule(symbolProvider, pubCrate)
     val rustType = RustType.Opaque("Builder", builderModule.fullyQualifiedPath())
     return Symbol.builder()
         .rustType(rustType)

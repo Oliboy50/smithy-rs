@@ -64,7 +64,8 @@ class ConstrainedShapeSymbolProvider(
         check(shape is MapShape || shape is CollectionShape)
 
         val rustType = RustType.Opaque(shape.contextName(serviceShape).toPascalCase())
-        return symbolBuilder(shape, rustType).locatedIn(ModelsModule).build()
+        val module = shape.getParentAndInlineModuleForConstrainedMember(this)?.second ?: ModelsModule
+        return symbolBuilder(shape, rustType).locatedIn(module).build()
     }
 
     override fun toSymbol(shape: Shape): Symbol {
@@ -75,8 +76,14 @@ class ConstrainedShapeSymbolProvider(
                 val target = model.expectShape(shape.target)
                 val targetSymbol = this.toSymbol(target)
                 // Handle boxing first, so we end up with `Option<Box<_>>`, not `Box<Option<_>>`.
-                handleOptionality(handleRustBoxing(targetSymbol, shape), shape, nullableIndex, base.config().nullabilityCheckMode)
+                handleOptionality(
+                    handleRustBoxing(targetSymbol, shape),
+                    shape,
+                    nullableIndex,
+                    base.config().nullabilityCheckMode,
+                )
             }
+
             is MapShape -> {
                 if (shape.isDirectlyConstrained(base)) {
                     check(shape.hasTrait<LengthTrait>()) { "Only the `length` constraint trait can be applied to maps" }
@@ -90,6 +97,7 @@ class ConstrainedShapeSymbolProvider(
                         .build()
                 }
             }
+
             is CollectionShape -> {
                 if (shape.isDirectlyConstrained(base)) {
                     check(constrainedCollectionCheck(shape)) { "Only the `length` constraint trait can be applied to lists" }
@@ -102,8 +110,13 @@ class ConstrainedShapeSymbolProvider(
 
             is StringShape, is IntegerShape, is ShortShape, is LongShape, is ByteShape, is BlobShape -> {
                 if (shape.isDirectlyConstrained(base)) {
+                    // A standalone primitive constrained shape goes into ModelsModule, but a
+                    // constrained member shape, goes into the module where the containing
+                    // structure's Builder data type resides.
+                    val moduleForShape =
+                        shape.getParentAndInlineModuleForConstrainedMember(this)?.second ?: ModelsModule
                     val rustType = RustType.Opaque(shape.contextName(serviceShape).toPascalCase())
-                    symbolBuilder(shape, rustType).locatedIn(ModelsModule).build()
+                    symbolBuilder(shape, rustType).locatedIn(moduleForShape).build()
                 } else {
                     base.toSymbol(shape)
                 }
@@ -119,9 +132,11 @@ class ConstrainedShapeSymbolProvider(
      *  - That it has no unsupported constraints applied.
      */
     private fun constrainedCollectionCheck(shape: CollectionShape): Boolean {
-        val supportedConstraintTraits = supportedCollectionConstraintTraits.mapNotNull { shape.getTrait(it).orNull() }.toSet()
+        val supportedConstraintTraits =
+            supportedCollectionConstraintTraits.mapNotNull { shape.getTrait(it).orNull() }.toSet()
         val allConstraintTraits = allConstraintTraits.mapNotNull { shape.getTrait(it).orNull() }.toSet()
 
-        return supportedConstraintTraits.isNotEmpty() && allConstraintTraits.subtract(supportedConstraintTraits).isEmpty()
+        return supportedConstraintTraits.isNotEmpty() && allConstraintTraits.subtract(supportedConstraintTraits)
+            .isEmpty()
     }
 }

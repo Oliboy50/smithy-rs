@@ -13,6 +13,8 @@ import software.amazon.smithy.model.traits.RequiredTrait
 import software.amazon.smithy.model.traits.Trait
 import software.amazon.smithy.model.transform.ModelTransformer
 import software.amazon.smithy.rust.codegen.core.smithy.DirectedWalker
+import software.amazon.smithy.rust.codegen.core.smithy.traits.SyntheticInputTrait
+import software.amazon.smithy.rust.codegen.core.smithy.traits.SyntheticOutputTrait
 import software.amazon.smithy.rust.codegen.server.smithy.traits.SyntheticStructureFromConstrainedMemberTrait
 import software.amazon.smithy.utils.ToSmithyBuilder
 import java.lang.IllegalStateException
@@ -20,6 +22,7 @@ import java.util.*
 import software.amazon.smithy.rust.codegen.core.util.UNREACHABLE
 import software.amazon.smithy.rust.codegen.core.util.orNull
 import software.amazon.smithy.rust.codegen.server.smithy.allConstraintTraits
+import software.amazon.smithy.rust.codegen.server.smithy.transformers.ConstrainedMemberTransform.makeNonConstrained
 
 /**
  * Transforms all member shapes that have constraints on them into equivalent non-constrained
@@ -73,24 +76,56 @@ object ConstrainedMemberTransform {
             .flatMap { operation ->
                 listOfNotNull(operation.input.orNull(), operation.output.orNull())
             }
-            .map { model.expectShape(it) }
+            .mapNotNull { model.expectShape(it).asStructureShape().orElse(null) }
+            .filter {
+                // Restrict set of shapes to synthetic shapes that are added by OperationNormalizer as the
+                // code is generated for these and not the one given as input model.
+                it.hasTrait(SyntheticInputTrait.ID) || it.hasTrait(SyntheticOutputTrait.ID)
+            }
             .flatMap {
                 walker.walkShapes(it)
             }
-            .filter { it is StructureShape || it is ListShape || it is UnionShape || it is MapShape }
+            .filter {
+                // Keep only the shapes that can have a constraint trait applied to them.
+                it is StructureShape || it is ListShape || it is UnionShape || it is MapShape
+            }
             .flatMap {
                 it.constrainedMembers()
             }
             .mapNotNull {
                 val transformation = it.makeNonConstrained(model, additionalNames)
-                if (transformation != null)
+                if (transformation != null) {
+                    // Keep record of new names that have been generated to ensure none of them regenerated.
                     additionalNames.add(transformation.newShape.id)
+                }
 
                 transformation
             }
 
         return applyTransformations(model, transformations)
     }
+
+    private fun constrainedMembersOfOperationReachableShapes(
+        operationInputOutput: StructureShape,
+        walker: DirectedWalker,
+    ) =
+        // Make a pair of ioShape -> set of all reachable shapes from it. The SyntheticTrait
+        // that we need to put on each reachable shape needs to know the top most structure that
+        // the shape is reachable from.
+        Pair(
+            operationInputOutput,
+            walker.walkShapes(operationInputOutput)
+                .filter {
+                    // Keep only the shapes that can have a constraint trait applied to them.
+                    // TODO: we can get rid of this filter part and just call the next flatMap
+                    // as that should work on each shape that this OR expression has.
+                    it is StructureShape || it is ListShape || it is UnionShape || it is MapShape
+                }
+                .flatMap {
+                    it.constrainedMembers()
+                },
+        )
+
 
     /***
      * Returns a Model that has all the transformations applied on the original model.
@@ -99,26 +134,21 @@ object ConstrainedMemberTransform {
         model: Model,
         transformations: List<MemberShapeTransformation>,
     ): Model {
-        if (transformations.isEmpty())
-            return model
-
         val modelBuilder = model.toBuilder()
-        val memberShapesToChange: MutableList<MemberShape> = mutableListOf()
 
-        transformations.forEach {
+        val memberShapesToReplace = transformations.map {
+            // Add the new shape to the model.
             modelBuilder.addShape(it.newShape)
 
-            val changedMember = it.memberToChange.toBuilder()
+            it.memberToChange.toBuilder()
                 .target(it.newShape.id)
                 .traits(it.traitsToKeep)
                 .build()
-            memberShapesToChange.add(changedMember)
         }
 
-        // Change all original constrained member shapes with the new standalone types,
-        // and keep only the non-constraint traits on the member shape.
+        // Change all original constrained member shapes with the new standalone shapes.
         return ModelTransformer.create()
-            .replaceShapes(modelBuilder.build(), memberShapesToChange)
+            .replaceShapes(modelBuilder.build(), memberShapesToReplace)
     }
 
     /**
@@ -179,6 +209,9 @@ object ConstrainedMemberTransform {
         if (constraintTraits.isEmpty())
             return null
 
+        // Build a new shape similar to the target of the constrained member shape. It should
+        // have all of the original constraints that have not been overridden, and the ones
+        // that this member shape overrides.
         val targetShape = model.expectShape(this.target)
         if (targetShape !is ToSmithyBuilder<*>)
             UNREACHABLE("member target shapes will always be buildable")
@@ -188,17 +221,20 @@ object ConstrainedMemberTransform {
                 // Use the target builder to create a new standalone shape that would
                 // be added to the model later on. Keep all existing traits on the target
                 // but replace the ones that are overridden on the member shape.
-                val existingNonOverriddenTraits =
+                val nonOverriddenTraitsOnTarget =
                     builder.allTraits.values.filter { existingTrait ->
                         constraintTraits.none { it.toShapeId() == existingTrait.toShapeId() }
                     }
 
-                val newTraits =
-                    existingNonOverriddenTraits + constraintTraits + SyntheticStructureFromConstrainedMemberTrait(
-                        this,
-                    )
+                // Add a synthetic constraint on all new shapes being defined, that would link
+                // the new shape to the root structure from which it is reachable.
+                val syntheticTrait = SyntheticStructureFromConstrainedMemberTrait(model.expectShape(this.container))
 
-                // Create a new standalone shape that will be added to the model later on
+                // Combine target traits, overridden traits and the synthetic trait
+                val newTraits =
+                    nonOverriddenTraitsOnTarget + constraintTraits + syntheticTrait
+
+                // Create a new unique standalone shape that will be added to the model later on
                 val shapeId = overriddenShapeId(model, additionalNames, this.id)
                 val standaloneShape = builder.id(shapeId)
                     .traits(newTraits)

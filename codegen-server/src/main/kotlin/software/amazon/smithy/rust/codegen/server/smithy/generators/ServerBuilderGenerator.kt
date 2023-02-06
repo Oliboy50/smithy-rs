@@ -13,9 +13,11 @@ import software.amazon.smithy.model.shapes.StructureShape
 import software.amazon.smithy.model.shapes.UnionShape
 import software.amazon.smithy.rust.codegen.core.rustlang.Attribute
 import software.amazon.smithy.rust.codegen.core.rustlang.Attribute.Companion.derive
+import software.amazon.smithy.rust.codegen.core.rustlang.RustModule
 import software.amazon.smithy.rust.codegen.core.rustlang.RustType
 import software.amazon.smithy.rust.codegen.core.rustlang.RustWriter
 import software.amazon.smithy.rust.codegen.core.rustlang.Visibility
+import software.amazon.smithy.rust.codegen.core.rustlang.Writable
 import software.amazon.smithy.rust.codegen.core.rustlang.conditionalBlock
 import software.amazon.smithy.rust.codegen.core.rustlang.deprecatedShape
 import software.amazon.smithy.rust.codegen.core.rustlang.docs
@@ -29,6 +31,7 @@ import software.amazon.smithy.rust.codegen.core.rustlang.rustTemplate
 import software.amazon.smithy.rust.codegen.core.rustlang.stripOuter
 import software.amazon.smithy.rust.codegen.core.rustlang.withBlock
 import software.amazon.smithy.rust.codegen.core.smithy.RuntimeType
+import software.amazon.smithy.rust.codegen.core.smithy.RustCrate
 import software.amazon.smithy.rust.codegen.core.smithy.expectRustMetadata
 import software.amazon.smithy.rust.codegen.core.smithy.isOptional
 import software.amazon.smithy.rust.codegen.core.smithy.isRustBoxed
@@ -50,6 +53,7 @@ import software.amazon.smithy.rust.codegen.server.smithy.canReachConstrainedShap
 import software.amazon.smithy.rust.codegen.server.smithy.hasConstraintTraitOrTargetHasConstraintTrait
 import software.amazon.smithy.rust.codegen.server.smithy.targetCanReachConstrainedShape
 import software.amazon.smithy.rust.codegen.server.smithy.traits.isReachableFromOperationInput
+import software.amazon.smithy.rust.codegen.server.smithy.withCombinedInlineModule
 import software.amazon.smithy.rust.codegen.server.smithy.wouldHaveConstrainedWrapperTupleTypeWerePublicConstrainedTypesEnabled
 
 /**
@@ -86,7 +90,7 @@ import software.amazon.smithy.rust.codegen.server.smithy.wouldHaveConstrainedWra
  * [derive_builder]: https://docs.rs/derive_builder/latest/derive_builder/index.html
  */
 class ServerBuilderGenerator(
-    codegenContext: ServerCodegenContext,
+    val codegenContext: ServerCodegenContext,
     private val shape: StructureShape,
 ) {
     companion object {
@@ -150,6 +154,13 @@ class ServerBuilderGenerator(
         "TryFrom" to RuntimeType.TryFrom,
         "MaybeConstrained" to RuntimeType.MaybeConstrained,
     )
+
+    fun renderCombinedInlineModule(rustCrate: RustCrate, writer: RustWriter) {
+        writer.docs("See #D.", structureSymbol)
+        rustCrate.withCombinedInlineModule(builderSymbol.module()) {
+            renderBuilder(this)
+        }
+    }
 
     fun render(writer: RustWriter) {
         writer.docs("See #D.", structureSymbol)

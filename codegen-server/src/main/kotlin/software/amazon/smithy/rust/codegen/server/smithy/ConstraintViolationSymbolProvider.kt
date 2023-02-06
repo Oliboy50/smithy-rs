@@ -32,6 +32,7 @@ import software.amazon.smithy.rust.codegen.core.smithy.module
 import software.amazon.smithy.rust.codegen.core.smithy.rustType
 import software.amazon.smithy.rust.codegen.core.util.toSnakeCase
 import software.amazon.smithy.rust.codegen.server.smithy.generators.serverBuilderSymbol
+import software.amazon.smithy.rust.codegen.server.smithy.traits.SyntheticStructureFromConstrainedMemberTrait
 
 /**
  * The [ConstraintViolationSymbolProvider] returns, for a given constrained
@@ -84,11 +85,20 @@ class ConstraintViolationSymbolProvider(
         } else {
             null
         }
+
+        // FZ TODO: remove this IF and see if we can put all (specially Vec) into the symbol
+        // provider too
+        val module = if (this.hasTrait(SyntheticStructureFromConstrainedMemberTrait.ID))
+            base.toSymbol(this).module()
+        else
+            ModelsModule
+
         return RustModule.new(
             // Need to use the context name so we get the correct name for maps.
             name = RustReservedWords.escapeIfNeeded(this.contextName(serviceShape)).toSnakeCase(),
             visibility = visibility,
-            parent = ModelsModule,
+            //parent = ModelsModule,
+            parent = module,
             inline = true,
             documentation = documentation,
         )
