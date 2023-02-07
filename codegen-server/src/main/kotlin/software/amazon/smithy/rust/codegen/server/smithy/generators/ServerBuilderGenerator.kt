@@ -13,11 +13,9 @@ import software.amazon.smithy.model.shapes.StructureShape
 import software.amazon.smithy.model.shapes.UnionShape
 import software.amazon.smithy.rust.codegen.core.rustlang.Attribute
 import software.amazon.smithy.rust.codegen.core.rustlang.Attribute.Companion.derive
-import software.amazon.smithy.rust.codegen.core.rustlang.RustModule
 import software.amazon.smithy.rust.codegen.core.rustlang.RustType
 import software.amazon.smithy.rust.codegen.core.rustlang.RustWriter
 import software.amazon.smithy.rust.codegen.core.rustlang.Visibility
-import software.amazon.smithy.rust.codegen.core.rustlang.Writable
 import software.amazon.smithy.rust.codegen.core.rustlang.conditionalBlock
 import software.amazon.smithy.rust.codegen.core.rustlang.deprecatedShape
 import software.amazon.smithy.rust.codegen.core.rustlang.docs
@@ -53,7 +51,7 @@ import software.amazon.smithy.rust.codegen.server.smithy.canReachConstrainedShap
 import software.amazon.smithy.rust.codegen.server.smithy.hasConstraintTraitOrTargetHasConstraintTrait
 import software.amazon.smithy.rust.codegen.server.smithy.targetCanReachConstrainedShape
 import software.amazon.smithy.rust.codegen.server.smithy.traits.isReachableFromOperationInput
-import software.amazon.smithy.rust.codegen.server.smithy.withCombinedInlineModule
+import software.amazon.smithy.rust.codegen.server.smithy.withComposableInlineModule
 import software.amazon.smithy.rust.codegen.server.smithy.wouldHaveConstrainedWrapperTupleTypeWerePublicConstrainedTypesEnabled
 
 /**
@@ -155,9 +153,11 @@ class ServerBuilderGenerator(
         "MaybeConstrained" to RuntimeType.MaybeConstrained,
     )
 
-    fun renderCombinedInlineModule(rustCrate: RustCrate, writer: RustWriter) {
-        writer.docs("See #D.", structureSymbol)
-        rustCrate.withCombinedInlineModule(builderSymbol.module()) {
+    fun composeDocAndCodeWritable(rustCrate : RustCrate, writer: RustWriter) {
+        val docWriter : () -> Unit = {
+            writer.docs("See #D.", structureSymbol)
+        }
+        rustCrate.withComposableInlineModule(builderSymbol.module(), codegenContext, docWriter) {
             renderBuilder(this)
         }
     }

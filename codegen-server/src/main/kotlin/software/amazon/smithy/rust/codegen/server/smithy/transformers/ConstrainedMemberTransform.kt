@@ -109,8 +109,8 @@ object ConstrainedMemberTransform {
         operationInputOutput: StructureShape,
         walker: DirectedWalker,
     ) =
-        // Make a pair of ioShape -> set of all reachable shapes from it. The SyntheticTrait
-        // that we need to put on each reachable shape needs to know the top most structure that
+    // Make a pair of ioShape -> set of all reachable shapes from it. The SyntheticTrait
+    // that we need to put on each reachable shape needs to know the top most structure that
         // the shape is reachable from.
         Pair(
             operationInputOutput,
@@ -228,7 +228,8 @@ object ConstrainedMemberTransform {
 
                 // Add a synthetic constraint on all new shapes being defined, that would link
                 // the new shape to the root structure from which it is reachable.
-                val syntheticTrait = SyntheticStructureFromConstrainedMemberTrait(model.expectShape(this.container))
+                val syntheticTrait =
+                    SyntheticStructureFromConstrainedMemberTrait(model.expectShape(this.container), this)
 
                 // Combine target traits, overridden traits and the synthetic trait
                 val newTraits =
