@@ -63,8 +63,8 @@ class ConstrainedShapeSymbolProvider(
     private fun publicConstrainedSymbolForMapOrCollectionShape(shape: Shape): Symbol {
         check(shape is MapShape || shape is CollectionShape)
 
-        val rustType = RustType.Opaque(shape.contextName(serviceShape).toPascalCase())
-        val module = shape.getParentAndInlineModuleForConstrainedMember(this)?.second ?: ModelsModule
+        val (name, module) = shape.getMemberNameAndModule(serviceShape, this, ModelsModule)
+        val rustType = RustType.Opaque(name)
         return symbolBuilder(shape, rustType).locatedIn(module).build()
     }
 
@@ -113,10 +113,9 @@ class ConstrainedShapeSymbolProvider(
                     // A standalone primitive constrained shape goes into ModelsModule, but a
                     // constrained member shape, goes into the module where the containing
                     // structure's Builder data type resides.
-                    val moduleForShape =
-                        shape.getParentAndInlineModuleForConstrainedMember(this)?.second ?: ModelsModule
-                    val rustType = RustType.Opaque(shape.contextName(serviceShape).toPascalCase())
-                    symbolBuilder(shape, rustType).locatedIn(moduleForShape).build()
+                    val (name, module) = shape.getMemberNameAndModule(serviceShape, this, ModelsModule)
+                    val rustType = RustType.Opaque(name)
+                    symbolBuilder(shape, rustType).locatedIn(module).build()
                 } else {
                     base.toSymbol(shape)
                 }

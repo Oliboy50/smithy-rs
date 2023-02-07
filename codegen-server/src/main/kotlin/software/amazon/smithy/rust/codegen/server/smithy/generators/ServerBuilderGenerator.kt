@@ -154,9 +154,7 @@ class ServerBuilderGenerator(
     )
 
     fun composeDocAndCodeWritable(rustCrate : RustCrate, writer: RustWriter) {
-        val docWriter : () -> Unit = {
-            writer.docs("See #D.", structureSymbol)
-        }
+        val docWriter : () -> Unit = { writer.docs("See #D.", structureSymbol) }
         rustCrate.withComposableInlineModule(builderSymbol.module(), codegenContext, docWriter) {
             renderBuilder(this)
         }

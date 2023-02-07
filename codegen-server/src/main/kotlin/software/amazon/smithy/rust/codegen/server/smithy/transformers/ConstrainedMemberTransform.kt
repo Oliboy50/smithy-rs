@@ -72,26 +72,15 @@ object ConstrainedMemberTransform {
         val additionalNames = HashSet<ShapeId>()
         val walker = DirectedWalker(model)
 
+        // Restrict set of shapes to synthetic shapes that are added by OperationNormalizer as the
+        // code is generated for these and not the one given as input model.
         val transformations = model.operationShapes
-            .flatMap { operation ->
-                listOfNotNull(operation.input.orNull(), operation.output.orNull())
-            }
+            .flatMap    { listOfNotNull(it.input.orNull(), it.output.orNull()) }
             .mapNotNull { model.expectShape(it).asStructureShape().orElse(null) }
-            .filter {
-                // Restrict set of shapes to synthetic shapes that are added by OperationNormalizer as the
-                // code is generated for these and not the one given as input model.
-                it.hasTrait(SyntheticInputTrait.ID) || it.hasTrait(SyntheticOutputTrait.ID)
-            }
-            .flatMap {
-                walker.walkShapes(it)
-            }
-            .filter {
-                // Keep only the shapes that can have a constraint trait applied to them.
-                it is StructureShape || it is ListShape || it is UnionShape || it is MapShape
-            }
-            .flatMap {
-                it.constrainedMembers()
-            }
+            .filter     { it.hasTrait(SyntheticInputTrait.ID) || it.hasTrait(SyntheticOutputTrait.ID) }
+            .flatMap    { walker.walkShapes(it) }
+            .filter     { it is StructureShape || it is ListShape || it is UnionShape || it is MapShape }
+            .flatMap    { it.constrainedMembers() }
             .mapNotNull {
                 val transformation = it.makeNonConstrained(model, additionalNames)
                 if (transformation != null) {
@@ -115,15 +104,8 @@ object ConstrainedMemberTransform {
         Pair(
             operationInputOutput,
             walker.walkShapes(operationInputOutput)
-                .filter {
-                    // Keep only the shapes that can have a constraint trait applied to them.
-                    // TODO: we can get rid of this filter part and just call the next flatMap
-                    // as that should work on each shape that this OR expression has.
-                    it is StructureShape || it is ListShape || it is UnionShape || it is MapShape
-                }
-                .flatMap {
-                    it.constrainedMembers()
-                },
+                .filter  { it is StructureShape || it is ListShape || it is UnionShape || it is MapShape }
+                .flatMap { it.constrainedMembers() }
         )
 
 

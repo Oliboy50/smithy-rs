@@ -14,6 +14,7 @@ import software.amazon.smithy.model.shapes.IntegerShape
 import software.amazon.smithy.model.shapes.LongShape
 import software.amazon.smithy.model.shapes.MapShape
 import software.amazon.smithy.model.shapes.MemberShape
+import software.amazon.smithy.model.shapes.ServiceShape
 import software.amazon.smithy.model.shapes.Shape
 import software.amazon.smithy.model.shapes.ShortShape
 import software.amazon.smithy.model.shapes.SimpleShape
@@ -29,11 +30,13 @@ import software.amazon.smithy.model.traits.UniqueItemsTrait
 import software.amazon.smithy.rust.codegen.core.rustlang.RustModule
 import software.amazon.smithy.rust.codegen.core.smithy.CodegenContext
 import software.amazon.smithy.rust.codegen.core.smithy.DirectedWalker
+import software.amazon.smithy.rust.codegen.core.smithy.contextName
 import software.amazon.smithy.rust.codegen.core.smithy.isOptional
 import software.amazon.smithy.rust.codegen.core.smithy.module
 import software.amazon.smithy.rust.codegen.core.util.UNREACHABLE
 import software.amazon.smithy.rust.codegen.core.util.getTrait
 import software.amazon.smithy.rust.codegen.core.util.hasTrait
+import software.amazon.smithy.rust.codegen.core.util.toPascalCase
 import software.amazon.smithy.rust.codegen.server.smithy.generators.serverBuilderModule
 import software.amazon.smithy.rust.codegen.server.smithy.traits.SyntheticStructureFromConstrainedMemberTrait
 
@@ -170,16 +173,30 @@ fun Shape.typeNameContainsNonPublicType(
 fun Shape.isOverridenConstrainedMember(): Boolean =
     getTrait<SyntheticStructureFromConstrainedMemberTrait>() != null
 
-fun Shape.overriddenConstrainedMemberContainer(): Shape? =
-    getTrait<SyntheticStructureFromConstrainedMemberTrait>()?.container
+fun Shape.overriddenConstrainedMemberInfo(): Pair<Shape, MemberShape>? {
+    val trait = getTrait<SyntheticStructureFromConstrainedMemberTrait>() ?: return null
+    return Pair(trait.container, trait.member)
+}
 
 
 /**
  * Returns the parent and the inline module that this particular shape should go in.
  */
 fun Shape.getParentAndInlineModuleForConstrainedMember(symbolProvider: SymbolProvider): Pair<RustModule.LeafModule, RustModule.LeafModule>? {
-    val container = overriddenConstrainedMemberContainer()?.asStructureShape()?.orElse(null) ?: return null
+    val container = overriddenConstrainedMemberInfo()?.first?.asStructureShape()?.orElse(null) ?: return null
     val structureModule = symbolProvider.toSymbol(container).module()
     val builderModule = container.serverBuilderModule(symbolProvider, false)
     return Pair(structureModule, builderModule)
+}
+
+fun Shape.getMemberNameAndModule(serviceShape: ServiceShape, symbolProvider: SymbolProvider, defaultModule : RustModule.LeafModule): Pair<String, RustModule.LeafModule> {
+    val overriddenInfo = overriddenConstrainedMemberInfo()
+    if (overriddenInfo == null || !overriddenInfo.first.isStructureShape)
+        return Pair(contextName(serviceShape), defaultModule)
+
+    val container = overriddenInfo.first.asStructureShape().get()
+    val builderModule = container.serverBuilderModule(symbolProvider, false)
+    val renameTo = overriddenInfo.second.memberName ?: overriddenInfo.second.id.name
+
+    return Pair(renameTo.toPascalCase(), builderModule)
 }
