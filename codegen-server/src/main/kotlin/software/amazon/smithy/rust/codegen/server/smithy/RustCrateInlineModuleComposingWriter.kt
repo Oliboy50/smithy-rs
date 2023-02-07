@@ -211,7 +211,7 @@ fun RustCrate.withComposableInlineModule(
     )
 }
 
-fun RustCrate.renderInlineModules() {
+fun RustCrate.renderComposableInlineModules() {
     RustCrateInlineModuleComposingWriter.renderAndRemoveCrate(this)
 }
 

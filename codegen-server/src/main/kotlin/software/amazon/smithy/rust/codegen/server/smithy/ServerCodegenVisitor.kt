@@ -6,6 +6,7 @@
 package software.amazon.smithy.rust.codegen.server.smithy
 
 import software.amazon.smithy.build.PluginContext
+import software.amazon.smithy.codegen.core.CodegenException
 import software.amazon.smithy.model.Model
 import software.amazon.smithy.model.knowledge.NullableIndex
 import software.amazon.smithy.model.shapes.BlobShape
@@ -210,16 +211,16 @@ open class ServerCodegenVisitor(
                 // TODO(https://github.com/awslabs/smithy-rs/issues/1756): These are getting duplicated.
                 logger.log(logMessage.level, logMessage.message)
             }
-//            if (validationResult.shouldAbort) {
-//                throw CodegenException("Unsupported constraints feature used; see error messages above for resolution")
-//            }
+            if (validationResult.shouldAbort) {
+                throw CodegenException("Unsupported constraints feature used; see error messages above for resolution")
+            }
         }
 
         val serviceShapes = DirectedWalker(model).walkShapes(service)
         serviceShapes.forEach { it.accept(this) }
         codegenDecorator.extras(codegenContext, rustCrate)
 
-        rustCrate.renderInlineModules()
+        rustCrate.renderComposableInlineModules()
 
         rustCrate.finalize(
             settings,

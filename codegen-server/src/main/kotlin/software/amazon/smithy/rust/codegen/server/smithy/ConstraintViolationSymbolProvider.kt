@@ -86,8 +86,6 @@ class ConstraintViolationSymbolProvider(
             null
         }
 
-        // FZ TODO: remove this IF and see if we can put all (specially Vec) into the symbol
-        // provider too
         val module = if (this.hasTrait(SyntheticStructureFromConstrainedMemberTrait.ID))
             base.toSymbol(this).module()
         else
@@ -97,7 +95,6 @@ class ConstraintViolationSymbolProvider(
             // Need to use the context name so we get the correct name for maps.
             name = RustReservedWords.escapeIfNeeded(this.contextName(serviceShape)).toSnakeCase(),
             visibility = visibility,
-            //parent = ModelsModule,
             parent = module,
             inline = true,
             documentation = documentation,
