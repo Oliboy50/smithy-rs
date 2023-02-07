@@ -170,9 +170,6 @@ fun Shape.typeNameContainsNonPublicType(
     else -> UNREACHABLE("the above arms should be exhaustive, but we received shape: $this")
 }
 
-fun Shape.isOverridenConstrainedMember(): Boolean =
-    getTrait<SyntheticStructureFromConstrainedMemberTrait>() != null
-
 fun Shape.overriddenConstrainedMemberInfo(): Pair<Shape, MemberShape>? {
     val trait = getTrait<SyntheticStructureFromConstrainedMemberTrait>() ?: return null
     return Pair(trait.container, trait.member)

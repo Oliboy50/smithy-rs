@@ -86,10 +86,11 @@ class ConstraintViolationSymbolProvider(
             null
         }
 
-        val module = if (this.hasTrait(SyntheticStructureFromConstrainedMemberTrait.ID))
+        val module = if (this.hasTrait(SyntheticStructureFromConstrainedMemberTrait.ID)) {
             base.toSymbol(this).module()
-        else
+        } else {
             ModelsModule
+        }
 
         return RustModule.new(
             // Need to use the context name so we get the correct name for maps.

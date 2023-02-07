@@ -11,8 +11,8 @@ import java.util.concurrent.ConcurrentHashMap
 typealias DocWriter = () -> Unit
 
 /**
- * Creates a sequence of writable, each of which need to write in the same `rust_module::inline_module`. Calling
- * `render()`, creates an inline module and then invokes all of the writable.
+ * Creates a sequence of `Writable`s, each of which need to write in the same `rust_module::inline_module`. Calling
+ * `render()`, creates the inline module and then invokes all of the writables.
  */
 private class RustCrateInlineModuleComposingWriter {
     companion object {
@@ -22,7 +22,7 @@ private class RustCrateInlineModuleComposingWriter {
 
         /**
          * If the given shape is an "overridden constrained member" shape, then it registers
-         * the writeable to be called later on at the time of rendering. However, if the shape
+         * the writable to be called later on at the time of rendering. However, if the shape
          * is not an "overridden constrained member" then it calls the `rustWriterCreator` function
          * with the given writable. The `rustWriterCreator` can be:
          *
@@ -76,11 +76,11 @@ private class RustCrateInlineModuleComposingWriter {
             codegenContext: ServerCodegenContext,
             inlineModule: RustModule.LeafModule,
             docWriter: DocWriter? = null,
-            writeable: Writable,
+            writable: Writable,
         ) {
             val crateInlineWriter = crateToInlineModule.getOrPut(rustCrate) { RustCrateInlineModuleComposingWriter() }
             crateInlineWriter.add(inlineModule.parent, inlineModule, debugTrace(codegenContext), docWriter) {
-                writeable(this)
+                writable(this)
             }
         }
     }
@@ -98,11 +98,13 @@ private class RustCrateInlineModuleComposingWriter {
         private val inlineModuleWritables: HashMap<RustModule.LeafModule, InlineCodeAndDocWritable> = HashMap()
 
         /**
-         * Adds a writeable to the inline module
+         * Adds a `Writable` to the inline module
          */
         fun addWritable(inlineModule: RustModule.LeafModule, docWriter: DocWriter?, writable: Writable, debug: String?) {
             val inlineModule = inlineModuleWritables.getOrPut(inlineModule) { InlineCodeAndDocWritable(mutableListOf(), mutableListOf()) }
-            if (docWriter != null) inlineModule.docWritables.add(docWriter)
+            if (docWriter != null) {
+                inlineModule.docWritables.add(docWriter)
+            }
             inlineModule.codeWritables.add(InlineCodeWritable(writable, debug))
         }
 
@@ -120,7 +122,9 @@ private class RustCrateInlineModuleComposingWriter {
                 // Begin a rust inline module, write out the debug string and call each of the writable.
                 writer.withInlineModule(inlineModule) {
                     for (w in generators.codeWritables) {
-                        if (w.callStack != null) this.comment(w.callStack)
+                        if (w.callStack != null) {
+                            this.comment(w.callStack)
+                        }
                         w.writable(this)
                     }
                 }
@@ -139,14 +143,14 @@ private class RustCrateInlineModuleComposingWriter {
         inlineModule: RustModule.LeafModule,
         debug: String?,
         docWriter: DocWriter? = null,
-        writeable: Writable,
+        writable: Writable,
     ): RustCrateInlineModuleComposingWriter {
-        modules.getOrPut(fileModule) { InlineModules() }.addWritable(inlineModule, docWriter, writeable, debug)
+        modules.getOrPut(fileModule) { InlineModules() }.addWritable(inlineModule, docWriter, writable, debug)
         return this
     }
 
     /**
-     * Calls each writeable that has been registered for `parent::inline_module`
+     * Calls each `Writable` that has been registered for `parent::inline_module`
      */
     fun render(rustCrate: RustCrate) {
         for ((module, inlineModules) in modules) {
@@ -180,14 +184,14 @@ fun RustCrate.useShapeWriterOrUseWithStructureBuilder(
     shape: Shape,
     codegenContext: ServerCodegenContext,
     docWriter: DocWriter? = null,
-    writeable: Writable,
+    writable: Writable,
 ) {
     RustCrateInlineModuleComposingWriter.invokeWritableOrComposeIfConstrainedStructureMember(
         this,
         shape,
         codegenContext,
         docWriter,
-        writeable,
+        writable,
     ) {
         this.useShapeWriter(shape, it)
     }
@@ -214,4 +218,3 @@ fun RustCrate.withComposableInlineModule(
 fun RustCrate.renderComposableInlineModules() {
     RustCrateInlineModuleComposingWriter.renderAndRemoveCrate(this)
 }
-

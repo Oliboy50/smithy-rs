@@ -72,8 +72,11 @@ object ConstrainedMemberTransform {
         val additionalNames = HashSet<ShapeId>()
         val walker = DirectedWalker(model)
 
-        // Restrict set of shapes to synthetic shapes that are added by OperationNormalizer as the
-        // code is generated for these and not the one given as input model.
+        // Find all synthetic input / output structures that have been added by
+        // the OperationNormalizer, get constrained members out of those structures,
+        // convert them into non-constrained members and then pass them to the transformer.
+        // The transformer will add new shapes, and will replace existing member shapes' target
+        // with the newly added shapes.
         val transformations = model.operationShapes
             .flatMap    { listOfNotNull(it.input.orNull(), it.output.orNull()) }
             .mapNotNull { model.expectShape(it).asStructureShape().orElse(null) }
@@ -93,21 +96,6 @@ object ConstrainedMemberTransform {
 
         return applyTransformations(model, transformations)
     }
-
-    private fun constrainedMembersOfOperationReachableShapes(
-        operationInputOutput: StructureShape,
-        walker: DirectedWalker,
-    ) =
-    // Make a pair of ioShape -> set of all reachable shapes from it. The SyntheticTrait
-    // that we need to put on each reachable shape needs to know the top most structure that
-        // the shape is reachable from.
-        Pair(
-            operationInputOutput,
-            walker.walkShapes(operationInputOutput)
-                .filter  { it is StructureShape || it is ListShape || it is UnionShape || it is MapShape }
-                .flatMap { it.constrainedMembers() }
-        )
-
 
     /***
      * Returns a Model that has all the transformations applied on the original model.
@@ -154,7 +142,7 @@ object ConstrainedMemberTransform {
             .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
 
         fun makeStructName(suffix: String = "") =
-            ShapeId.from("${memberShape.namespace}#Overridden${structName}${memberName}$suffix")
+            ShapeId.from("${memberShape.namespace}#${structName}${memberName}$suffix")
 
         fun structNameIsUnique(newName: ShapeId) =
             model.getShape(newName).isEmpty && !additionalNames.contains(newName)

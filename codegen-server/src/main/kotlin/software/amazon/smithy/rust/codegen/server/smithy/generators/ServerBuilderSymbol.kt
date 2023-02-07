@@ -2,7 +2,6 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
-
 package software.amazon.smithy.rust.codegen.server.smithy.generators
 
 import software.amazon.smithy.codegen.core.Symbol
@@ -17,21 +16,11 @@ import software.amazon.smithy.rust.codegen.core.smithy.rustType
 import software.amazon.smithy.rust.codegen.core.util.toSnakeCase
 import software.amazon.smithy.rust.codegen.server.smithy.ServerCodegenContext
 
-val alreadyDefined : HashMap<String, RustModule.LeafModule> = HashMap()
-
-
 fun StructureShape.serverBuilderSymbol(codegenContext: ServerCodegenContext): Symbol =
     this.serverBuilderSymbol(
         codegenContext.symbolProvider,
         !codegenContext.settings.codegenConfig.publicConstrainedTypes,
     )
-
-fun StructureShape.serverBuilderModule(codegenContext: ServerCodegenContext): RustModule.LeafModule {
-    return this.serverBuilderModule(
-        codegenContext.symbolProvider,
-        !codegenContext.settings.codegenConfig.publicConstrainedTypes,
-    )
-}
 
 fun StructureShape.serverBuilderModule(symbolProvider: SymbolProvider, pubCrate: Boolean): RustModule.LeafModule {
     val structureSymbol = symbolProvider.toSymbol(this)
@@ -45,18 +34,7 @@ fun StructureShape.serverBuilderModule(symbolProvider: SymbolProvider, pubCrate:
         true -> Visibility.PUBCRATE
         false -> Visibility.PUBLIC
     }
-
-    val moduleToLookFor = "${visibility}${builderNamespace}${structureSymbol.module().name}"
-    return if (alreadyDefined.containsKey(moduleToLookFor)) {
-        alreadyDefined[moduleToLookFor]!!
-    }
-    else {
-        val module = RustModule.new(builderNamespace, visibility, parent = structureSymbol.module(), inline = true)
-        alreadyDefined[moduleToLookFor] = module
-        module
-    }
-
-    //return RustModule.new(builderNamespace, visibility, parent = structureSymbol.module(), inline = true)
+    return RustModule.new(builderNamespace, visibility, parent = structureSymbol.module(), inline = true)
 }
 
 fun StructureShape.serverBuilderSymbol(symbolProvider: SymbolProvider, pubCrate: Boolean): Symbol {
