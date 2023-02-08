@@ -265,7 +265,7 @@ class ConstraintsMemberShapeTest {
         )
     }
 
-    private fun runServerCodeGen(model: Model, dirToUse: File? = null, writable : Writable) : Path {
+    private fun runServerCodeGen(model: Model, dirToUse: File? = null, writable: Writable): Path {
         val runtimeConfig =
             RuntimeConfig(runtimeCrateLocation = RuntimeCrateLocation.Path(File("../rust-runtime").absolutePath))
 
@@ -280,7 +280,11 @@ class ConstraintsMemberShapeTest {
             .execute()
 
         val codegenContext = serverTestCodegenContext(model)
-        RustCrate(context.fileManifest, codegenContext.symbolProvider, ServerRustSettings.from(context.model, context.settings).codegenConfig)
+        RustCrate(
+            context.fileManifest,
+            codegenContext.symbolProvider,
+            ServerRustSettings.from(context.model, context.settings).codegenConfig
+        )
             .lib { writable }
 
         return dir
@@ -426,6 +430,7 @@ class ConstraintsMemberShapeTest {
             model.expectShape(ShapeId.from(member)).asMemberShape()
                 .get().target.name == ShapeId.from(targetShapeId).name,
         )
+}
 
 //    private val testBareModel = """
 //            namespace weather
